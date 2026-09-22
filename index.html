@@ -32,7 +32,7 @@ const csvCell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
 const prettyKey=s=>String(s||'').replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase());
 const anonName=(name,i)=>discussionAnon?`STUDENT ${String(i+1).padStart(2,'0')}`:name;
 async function fetchAttempts(id){let all=[],from=0;for(;;){const r=await sb.from('attempts').select('student_name,scenario_key,diagnosis_key,repair_key,score,mastery,efficiency,steps_count,duration_seconds,created_at,activities(title,slug)').eq('class_id',id).order('created_at',{ascending:false}).range(from,from+999);if(r.error)return r;all.push(...(r.data||[]));if((r.data||[]).length<1000)return{data:all,error:null};from+=1000}}
-async function fetchFeedback(id){let all=[],from=0;for(;;){const r=await sb.from('pilot_feedback').select('clarity,note,created_at').eq('class_id',id).order('created_at',{ascending:false}).range(from,from+999);if(r.error)return r;all.push(...(r.data||[]));if((r.data||[]).length<1000)return{data:all,error:null};from+=1000}}
+async function fetchFeedback(id){let all=[],from=0;for(;;){const r=await sb.from('pilot_feedback').select('student_name,clarity,note,created_at').eq('class_id',id).order('created_at',{ascending:false}).range(from,from+999);if(r.error)return r;all.push(...(r.data||[]));if((r.data||[]).length<1000)return{data:all,error:null};from+=1000}}
 async function fetchSessions(id){let all=[],from=0;for(;;){const r=await sb.from('simulation_sessions').select('student_name,scenario_key,actions,status,started_at,completed_at,activities(title,slug)').eq('class_id',id).order('started_at',{ascending:false}).range(from,from+999);if(r.error)return r;all.push(...(r.data||[]));if((r.data||[]).length<1000)return{data:all,error:null};from+=1000}}
 async function getCatalog(){const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'catalog'})});const x=await r.json();return x.activities||[]}
 function login(){app.innerHTML=`<div class="grid g2"><article class="card hero"><div class="ey">TEACHER ACCOUNT</div><h1>Manage your SkillLab class.</h1><p class="muted">Teacher accounts are sign-in only. Student registration is handled on the Student portal.</p></article><form id="auth" class="card form"><label>Email<input id="em" type="email" autocomplete="username" required></label><label>Password<input id="pw" type="password" autocomplete="current-password" minlength="6" required></label><div id="msg" class="muted"></div><button class="btn primary">Sign in</button></form></div>`;document.querySelector('#auth').onsubmit=async e=>{e.preventDefault();const m=document.querySelector('#msg');m.innerHTML='<span class="spin"></span>Signing in…';const{error}=await sb.auth.signInWithPassword({email:document.querySelector('#em').value.trim(),password:document.querySelector('#pw').value});if(error){m.innerHTML='<span class="bad">'+esc(error.message)+'</span>';return}load()}}
@@ -72,7 +72,7 @@ const discussionAvgAttempts=simStudents.length?Math.round((simStudents.reduce((q
 const displayStudentName=raw=>{const n=showName(raw),idx=simStudents.findIndex(x=>x.name===n);return anonName(n,Math.max(0,idx))};
 const discussionQuestion=wrongDiag[0]?`Why did several students choose "${prettyKey(wrongDiag[0][0])}"? What evidence should be checked before making that diagnosis?`:`What evidence helped you isolate the fault in ${discussionActivity?.title||'this simulator'} efficiently?`;
 const clarity={clear:0,somewhat_confusing:0,confusing:0};feedback.forEach(x=>{if(x.clarity in clarity)clarity[x.clarity]++});const notes=feedback.filter(x=>String(x.note||'').trim());
-app.innerHTML=`<div class="row"><div><div class="ey">TEACHER DASHBOARD</div><h2>${esc(cur.name)}</h2><div class="muted">Code ${esc(cur.code)} · pass requirement 90/100</div></div><div class="toolbar no-print"><select id="classpick">${classes.map(x=>`<option value="${x.id}" ${x.id===cur.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select><button id="print" class="btn">Print / Save PDF</button><button id="csv" class="btn">Export CSV</button><button id="manage" class="btn">Manage Students</button><button id="new" class="btn">New class</button><button id="pause" class="btn">${cur.is_active?'Pause class':'Activate class'}</button><button id="out" class="btn">Sign out</button></div></div>
+app.innerHTML=`<div class="row"><div><div class="ey">TEACHER DASHBOARD</div><h2>${esc(cur.name)}</h2><div class="muted">Code ${esc(cur.code)} · pass requirement 90/100</div></div><div class="toolbar no-print"><select id="classpick">${classes.map(x=>`<option value="${x.id}" ${x.id===cur.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select><button id="print" class="btn">Print / Save PDF</button><button id="csv" class="btn">Export CSV</button><button id="classreport" class="btn primary">Class Report</button><button id="manage" class="btn">Manage Students</button><button id="new" class="btn">New class</button><button id="pause" class="btn">${cur.is_active?'Pause class':'Activate class'}</button><button id="out" class="btn">Sign out</button></div></div>
 <div class="grid g4"><div class="card metric"><span class="muted">Participation</span><b>${roster.length}/${expected}</b><small class="muted">${Math.max(0,expected-roster.length)} expected student(s) not yet seen</small></div><div class="card metric"><span class="muted">Course complete</span><b>${complete}/${expected}</b></div><div class="card metric"><span class="muted">Stored attempts</span><b>${totalAttempts}</b></div><div class="card metric"><span class="muted">Average best score</span><b>${avg}%</b></div></div>
 <div class="grid g4"><div class="card metric"><span class="muted">Not started</span><b>${notStarted}</b></div><div class="card metric"><span class="muted">Retakes</span><b>${retakes}</b></div><div class="card metric"><span class="muted">Passing attempts</span><b>${passAttempts}</b></div><div class="card metric"><span class="muted">Feedback</span><b>${feedback.length}</b></div></div>
 ${unmapped?`<div class="notice warn"><b>Reporting check:</b> ${unmapped} stored attempt(s) could not be matched to a simulator. Those attempts are still listed in Attempt History, but they cannot be placed into the 10-lab matrix until the activity relationship is available.</div>`:''}
@@ -102,7 +102,129 @@ document.querySelector('#simprint').onclick=()=>{document.querySelector('#discus
 document.querySelector('#simcsv').onclick=()=>{const rows=[['Student','Attempts','Tries to Mastery','First Score','Best Score','Improvement','Successful Time Seconds','Successful Efficiency','Successful Steps'],...simStudents.map((x,i)=>[discussionAnon?anonName(x.name,i):x.name,x.attempts,x.triesToMastery??'',x.first,x.best,x.improvement,x.bestPass?.duration_seconds??'',x.bestPass?.efficiency??'',x.bestPass?.steps_count??''])];const blob=new Blob([rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${cur.code}-${discussionActivity?.slug||'simulation'}-discussion.csv`;a.click();URL.revokeObjectURL(url)};
 document.querySelector('#print').onclick=()=>window.print();
 document.querySelector('#csv').onclick=()=>{const rows=[['Student',...catalog.map((a,i)=>`Lab ${i+1}: ${a.title}`),'Labs Attempted','Labs Passed','Total Attempts','Retakes','Average Best','Status'],...roster.map(r=>[r.name,...catalog.map(a=>r.scores.get(a.slug)||''),r.labs,r.passed,r.attempts,r.retakes,r.avgBest,r.complete?'Complete':'In progress'])];const blob=new Blob([rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${cur.code}-skilllab-report.csv`;a.click();URL.revokeObjectURL(url)};
-document.querySelector('#classpick').onchange=e=>{classId=e.target.value;load()};document.querySelector('#manage').onclick=()=>manageStudents(cur);document.querySelector('#out').onclick=async()=>{await sb.auth.signOut();classId=null;login()};document.querySelector('#pause').onclick=async()=>{const{error}=await sb.from('classes').update({is_active:!cur.is_active}).eq('id',cur.id);if(error)return alert(error.message);load()};document.querySelector('#new').onclick=()=>newClass(session.user)}
+document.querySelector('#classpick').onchange=e=>{classId=e.target.value;load()};document.querySelector('#classreport').onclick=()=>classReport(cur,{members:reportMembers,attempts,feedback,sessions});document.querySelector('#manage').onclick=()=>manageStudents(cur);document.querySelector('#out').onclick=async()=>{await sb.auth.signOut();classId=null;login()};document.querySelector('#pause').onclick=async()=>{const{error}=await sb.from('classes').update({is_active:!cur.is_active}).eq('id',cur.id);if(error)return alert(error.message);load()};document.querySelector('#new').onclick=()=>newClass(session.user)}
+
+function classReport(cur,source){
+  let from='',to='',anonymous=false;
+  const members=(source.members||[]).filter(x=>(x.status||'active')==='active'&&!x.is_test);
+  const nameMap=new Map(members.map(x=>[(x.student_name||'').trim().toLowerCase(),String(x.display_name||showName(x.student_name)).trim().toUpperCase()]));
+  const orderedKeys=members.map(x=>(x.student_name||'').trim().toLowerCase()).filter(Boolean);
+  const anonMap=new Map(orderedKeys.map((k,i)=>[k,`STUDENT ${String(i+1).padStart(2,'0')}`]));
+  const studentLabel=(k)=>anonymous?(anonMap.get(k)||'STUDENT'):(nameMap.get(k)||showName(k));
+  const avg=a=>a.length?Math.round(a.reduce((q,x)=>q+Number(x||0),0)/a.length):0;
+  const avg1=a=>a.length?Math.round((a.reduce((q,x)=>q+Number(x||0),0)/a.length)*10)/10:0;
+  const within=(ts)=>{
+    if(!ts)return true;
+    const d=new Date(ts);
+    if(from&&d<new Date(from+'T00:00:00'))return false;
+    if(to&&d>new Date(to+'T23:59:59.999'))return false;
+    return true;
+  };
+  const render=()=>{
+    const attempts=(source.attempts||[]).filter(x=>within(x.created_at));
+    const sessions=(source.sessions||[]).filter(x=>within(x.started_at));
+    const feedback=(source.feedback||[]).filter(x=>within(x.created_at));
+    const byKey=new Map();
+    members.forEach(m=>byKey.set((m.student_name||'').trim().toLowerCase(),new Map()));
+    attempts.slice().sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).forEach(x=>{
+      const k=(x.student_name||'').trim().toLowerCase(),slug=x.activities?.slug||'';
+      if(!byKey.has(k)||!slug)return;
+      const labs=byKey.get(k);if(!labs.has(slug))labs.set(slug,[]);labs.get(slug).push(x);
+    });
+    const studentStats=orderedKeys.map(k=>{
+      const labs=byKey.get(k)||new Map();
+      const detail=catalog.map(a=>{
+        const rows=(labs.get(a.slug)||[]).slice().sort((x,y)=>new Date(x.created_at)-new Date(y.created_at));
+        const best=rows.length?Math.max(...rows.map(x=>Number(x.score||0))):0;
+        const passIndex=rows.findIndex(x=>Number(x.score)>=90);
+        const passRow=passIndex>=0?rows[passIndex]:null;
+        return{slug:a.slug,title:a.title,rows,best,first:Number(rows[0]?.score||0),passed:passIndex>=0,tries:passIndex>=0?passIndex+1:null,firstTry:passIndex===0,passRow};
+      });
+      const attempted=detail.filter(x=>x.rows.length),passed=detail.filter(x=>x.passed);
+      const successRows=passed.map(x=>x.passRow).filter(Boolean);
+      const improvements=attempted.map(x=>Math.max(0,x.best-x.first));
+      return{k,name:studentLabel(k),detail,attempted:attempted.length,passed:passed.length,totalAttempts:attempted.reduce((q,x)=>q+x.rows.length,0),retakes:attempted.reduce((q,x)=>q+Math.max(0,x.rows.length-1),0),avgBest:avg(attempted.map(x=>x.best)),avgEff:avg(successRows.map(x=>x.efficiency)),avgTime:avg(successRows.map(x=>x.duration_seconds)),firstTry:detail.filter(x=>x.firstTry).length,improvement:improvements.reduce((q,x)=>q+x,0),persistence:detail.filter(x=>x.tries&&x.tries>1).reduce((q,x)=>q+(x.tries-1),0),complete:passed.length===catalog.length,status:attempted.length?(passed.length===catalog.length?'Complete':'In Progress'):'Not Started'};
+    });
+    const labStats=catalog.map((a,i)=>{
+      const rows=attempts.filter(x=>x.activities?.slug===a.slug);
+      const grouped=new Map();
+      rows.slice().sort((x,y)=>new Date(x.created_at)-new Date(y.created_at)).forEach(x=>{const k=(x.student_name||'').trim().toLowerCase();if(!grouped.has(k))grouped.set(k,[]);grouped.get(k).push(x)});
+      const stud=[...grouped.values()].map(rs=>{const best=Math.max(...rs.map(x=>Number(x.score||0))),pi=rs.findIndex(x=>Number(x.score)>=90),pr=pi>=0?rs[pi]:null;return{rows:rs,best,passed:pi>=0,tries:pi>=0?pi+1:null,passRow:pr}});
+      const passed=stud.filter(x=>x.passed),passRate=pct(passed.length,stud.length),successRows=passed.map(x=>x.passRow).filter(Boolean);
+      return{n:i+1,slug:a.slug,title:a.title,competency:a.competency||'',students:stud.length,passed:passed.length,passRate,attempts:rows.length,retakes:stud.reduce((q,x)=>q+Math.max(0,x.rows.length-1),0),avgBest:avg(stud.map(x=>x.best)),avgAttempts:avg1(stud.map(x=>x.rows.length)),avgTime:avg(successRows.map(x=>x.duration_seconds)),avgEff:avg(successRows.map(x=>x.efficiency)),band:passRate>=90?'Strong Mastery':passRate>=70?'Developing Mastery':'Needs Reinforcement'};
+    });
+    const attemptedLabs=studentStats.reduce((q,s)=>q+s.attempted,0),firstTryLabs=studentStats.reduce((q,s)=>q+s.firstTry,0),retakeLabs=studentStats.reduce((q,s)=>q+s.detail.filter(x=>x.rows.length>1).length,0);
+    const started=studentStats.filter(x=>x.attempted).length,completed=studentStats.filter(x=>x.complete).length;
+    const allBest=studentStats.flatMap(s=>s.detail.filter(x=>x.rows.length).map(x=>x.best));
+    const successAttempts=attempts.filter(x=>Number(x.score)>=90);
+    const overall={students:members.length,started,completed,attempts:attempts.length,avgBest:avg(allBest),avgEff:avg(successAttempts.map(x=>x.efficiency)),avgTime:avg(successAttempts.map(x=>x.duration_seconds)),firstTryRate:pct(firstTryLabs,attemptedLabs),retakeRate:pct(retakeLabs,attemptedLabs)};
+    const withData=labStats.filter(x=>x.students);
+    const highest=withData.slice().sort((a,b)=>b.passRate-a.passRate||b.avgBest-a.avgBest)[0]||null;
+    const lowest=withData.slice().sort((a,b)=>a.passRate-b.passRate||a.avgBest-b.avgBest)[0]||null;
+    const mostRetaken=withData.slice().sort((a,b)=>b.retakes-a.retakes)[0]||null;
+    const fastest=withData.filter(x=>x.avgTime).slice().sort((a,b)=>a.avgTime-b.avgTime)[0]||null;
+    const lowestEff=withData.filter(x=>x.avgEff).slice().sort((a,b)=>a.avgEff-b.avgEff)[0]||null;
+
+    const countWrong=(key)=>{const m=new Map();attempts.forEach(x=>{if(x[key]&&x[key]!==x.scenario_key)m.set(x[key],(m.get(x[key])||0)+1)});return[...m.entries()].sort((a,b)=>b[1]-a[1])};
+    const wrongDiag=countWrong('diagnosis_key'),wrongRepair=countWrong('repair_key');
+    const paths=new Map();sessions.filter(x=>Array.isArray(x.actions)&&x.actions.length).forEach(x=>{const p=x.actions.map(prettyKey).join(' → ');paths.set(p,(paths.get(p)||0)+1)});
+    const commonPaths=[...paths.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+    const bestFirstTry=Math.max(0,...studentStats.map(x=>x.firstTry)),firstTryLeaders=studentStats.filter(x=>x.firstTry===bestFirstTry&&bestFirstTry>0);
+    const efficient=studentStats.filter(x=>x.avgEff).slice().sort((a,b)=>b.avgEff-a.avgEff||b.passed-a.passed)[0]||null;
+    const fastAccurate=studentStats.filter(x=>x.avgTime&&x.passed).slice().sort((a,b)=>a.avgTime-b.avgTime||b.avgBest-a.avgBest)[0]||null;
+    const improved=studentStats.filter(x=>x.improvement>0).slice().sort((a,b)=>b.improvement-a.improvement)[0]||null;
+    const persistent=studentStats.filter(x=>x.persistence>0).slice().sort((a,b)=>b.persistence-a.persistence)[0]||null;
+    const needsSupport=studentStats.filter(x=>x.attempted&& !x.complete).sort((a,b)=>a.passed-b.passed||b.retakes-a.retakes);
+
+    const period=from||to?`${from||'Beginning'} to ${to||'Present'}`:'All Time';
+    const actionItems=[];
+    if(lowest)actionItems.push(`Reinforce ${lowest.title}; current mastery is ${lowest.passRate}% (${lowest.passed}/${lowest.students} students who attempted reached 90+).`);
+    if(mostRetaken&&mostRetaken.retakes>0)actionItems.push(`Review ${mostRetaken.title} before the next activity; it generated the most retakes (${mostRetaken.retakes}).`);
+    if(wrongDiag[0])actionItems.push(`Discuss why "${prettyKey(wrongDiag[0][0])}" is being selected incorrectly and require students to cite evidence before choosing a diagnosis.`);
+    if(lowestEff)actionItems.push(`Model a more systematic troubleshooting sequence for ${lowestEff.title}; its successful-attempt efficiency averages ${lowestEff.avgEff}%.`);
+    if(!actionItems.length)actionItems.push('Continue the current sequence and monitor mastery as more students complete the simulations.');
+
+    const scoreClass=s=>s>=90?'ok':s>0?'warn':'muted';
+    app.innerHTML=`<div class="row no-print"><div><div class="ey">WHOLE CLASS PERFORMANCE REPORT</div><h2>${esc(cur.name)}</h2><div class="muted">Code ${esc(cur.code)} · ${esc(period)}</div></div><div class="toolbar"><button id="backreport" class="btn">Back to Dashboard</button><button id="anonreport" class="btn">${anonymous?'Show Names':'Anonymous Names'}</button><button id="printreport" class="btn primary">Print / Save PDF</button><button id="csvreport" class="btn">Export CSV</button></div></div>
+    <article class="card no-print"><div class="ey">REPORT PERIOD</div><div class="toolbar" style="margin-top:10px"><label>From <input id="reportfrom" type="date" value="${esc(from)}"></label><label>To <input id="reportto" type="date" value="${esc(to)}"></label><button id="applyperiod" class="btn">Apply</button><button id="alltime" class="btn">All Time</button></div></article>
+    <article class="card"><div class="ey">CLASS PROFILE & EXECUTIVE SUMMARY</div><h1 style="margin:8px 0 4px">SkillLab PH – Class Performance Report</h1><div class="muted">${esc(cur.name)} · ${esc(cur.code)} · ${esc(period)} · Generated ${new Date().toLocaleString('en-PH')}</div>
+    <div class="grid g4" style="margin-top:16px"><div class="metric"><span class="muted">Active students</span><b>${overall.students}</b></div><div class="metric"><span class="muted">Started</span><b>${overall.started}</b></div><div class="metric"><span class="muted">Completed all ${catalog.length}</span><b>${overall.completed}</b><small class="muted">${pct(overall.completed,overall.students)}% completion</small></div><div class="metric"><span class="muted">Total attempts</span><b>${overall.attempts}</b></div></div>
+    <div class="grid g4"><div class="metric"><span class="muted">Average best score</span><b>${overall.avgBest}%</b></div><div class="metric"><span class="muted">Avg successful efficiency</span><b>${overall.avgEff}%</b></div><div class="metric"><span class="muted">Avg successful time</span><b>${fmt(overall.avgTime)}</b></div><div class="metric"><span class="muted">First-try mastery rate</span><b>${overall.firstTryRate}%</b><small class="muted">Retake rate ${overall.retakeRate}%</small></div></div></article>
+    <article class="card"><div class="ey">CLASS PERFORMANCE HIGHLIGHTS</div><div class="grid g3" style="margin-top:12px">
+      <div class="notice"><b>Highest mastery</b><br>${highest?esc(highest.title)+' · '+highest.passRate+'%':'—'}</div>
+      <div class="notice"><b>Needs most reinforcement</b><br>${lowest?esc(lowest.title)+' · '+lowest.passRate+'%':'—'}</div>
+      <div class="notice"><b>Most retaken</b><br>${mostRetaken?esc(mostRetaken.title)+' · '+mostRetaken.retakes+' retakes':'—'}</div>
+      <div class="notice"><b>Fastest average successful completion</b><br>${fastest?esc(fastest.title)+' · '+fmt(fastest.avgTime):'—'}</div>
+      <div class="notice"><b>Lowest successful efficiency</b><br>${lowestEff?esc(lowestEff.title)+' · '+lowestEff.avgEff+'%':'—'}</div>
+      <div class="notice"><b>Feedback responses</b><br>${feedback.length}</div>
+    </div></article>
+    <article class="card"><div class="ey">PER-SIMULATION MASTERY ANALYSIS</div><div class="table"><table><thead><tr><th>Simulation</th><th>Competency</th><th>Attempted</th><th>Passed</th><th>Pass Rate</th><th>Avg Best</th><th>Avg Attempts</th><th>Retakes</th><th>Avg Time</th><th>Avg Efficiency</th><th>Mastery</th></tr></thead><tbody>${labStats.map(x=>`<tr><td><b>${String(x.n).padStart(2,'0')} · ${esc(x.title)}</b></td><td>${esc(x.competency||'—')}</td><td>${x.students}</td><td>${x.passed}</td><td>${x.passRate}%</td><td>${x.avgBest}%</td><td>${x.avgAttempts}</td><td>${x.retakes}</td><td>${x.avgTime?fmt(x.avgTime):'—'}</td><td>${x.avgEff||0}%</td><td class="${x.band==='Strong Mastery'?'ok':x.band==='Developing Mastery'?'warn':'bad'}">${x.band}</td></tr>`).join('')}</tbody></table></div></article>
+    <article class="card"><div class="ey">CLASS PERFORMANCE HEATMAP</div><p class="muted">Best score per student per simulator. 90+ = mastered.</p><div class="table"><table><thead><tr><th>Student</th>${catalog.map((a,i)=>`<th title="${esc(a.title)}">S${i+1}</th>`).join('')}<th>Passed</th><th>Status</th></tr></thead><tbody>${studentStats.map(s=>`<tr><td><b>${esc(s.name)}</b></td>${s.detail.map(x=>`<td class="${scoreClass(x.best)}">${x.best||'—'}</td>`).join('')}<td>${s.passed}/${catalog.length}</td><td class="${s.complete?'ok':s.attempted?'warn':'muted'}">${s.status}</td></tr>`).join('')}</tbody></table></div></article>
+    <article class="card"><div class="ey">STUDENT PROGRESS SUMMARY</div><div class="table"><table><thead><tr><th>Student</th><th>Labs Attempted</th><th>Labs Passed</th><th>Total Attempts</th><th>Retakes</th><th>Avg Best</th><th>Avg Efficiency</th><th>Avg Successful Time</th><th>First-Try Mastery</th><th>Status</th></tr></thead><tbody>${studentStats.map(s=>`<tr><td><b>${esc(s.name)}</b></td><td>${s.attempted}/${catalog.length}</td><td>${s.passed}/${catalog.length}</td><td>${s.totalAttempts}</td><td>${s.retakes}</td><td>${s.avgBest}%</td><td>${s.avgEff}%</td><td>${s.avgTime?fmt(s.avgTime):'—'}</td><td>${s.firstTry}</td><td>${s.status}</td></tr>`).join('')}</tbody></table></div></article>
+    <article class="card"><div class="ey">RECOGNITION & LEARNING PROGRESS</div><div class="grid g2" style="margin-top:12px">
+      <div class="notice"><b>First-Try Mastery</b><br>${firstTryLeaders.length?firstTryLeaders.map(x=>esc(x.name)).join(', ')+' · '+bestFirstTry+' simulation'+(bestFirstTry===1?'':'s'):'—'}</div>
+      <div class="notice"><b>Efficient Troubleshooter</b><br>${efficient?esc(efficient.name)+' · '+efficient.avgEff+'% avg successful efficiency':'—'}</div>
+      <div class="notice"><b>Fast and Accurate</b><br>${fastAccurate?esc(fastAccurate.name)+' · '+fmt(fastAccurate.avgTime)+' avg successful time':'—'}</div>
+      <div class="notice"><b>Most Improved</b><br>${improved?esc(improved.name)+' · +'+improved.improvement+' accumulated improvement points':'—'}</div>
+      <div class="notice"><b>Persistence to Mastery</b><br>${persistent?esc(persistent.name)+' · '+persistent.persistence+' extra attempt'+(persistent.persistence===1?'':'s')+' before mastery':'—'}</div>
+      <div class="notice"><b>Students needing additional support</b><br>${needsSupport.length?needsSupport.map(x=>esc(x.name)+' ('+x.passed+'/'+catalog.length+')').join(', '):'None in this report period'}</div>
+    </div></article>
+    <article class="card"><div class="ey">TROUBLESHOOTING & MISTAKE ANALYSIS</div><div class="grid g2" style="margin-top:12px"><div><h3>Common wrong diagnoses</h3>${wrongDiag.length?wrongDiag.slice(0,6).map(([k,n])=>`<div class="notice" style="margin-top:7px"><b>${esc(prettyKey(k))}</b> · ${n} incorrect selection${n===1?'':'s'}</div>`).join(''):'<p class="muted">No wrong diagnosis data.</p>'}</div><div><h3>Common wrong repairs</h3>${wrongRepair.length?wrongRepair.slice(0,6).map(([k,n])=>`<div class="notice" style="margin-top:7px"><b>${esc(prettyKey(k))}</b> · ${n} incorrect selection${n===1?'':'s'}</div>`).join(''):'<p class="muted">No wrong repair data.</p>'}</div></div><h3>Most common troubleshooting paths</h3>${commonPaths.length?commonPaths.map(([p,n])=>`<div class="notice" style="margin-top:7px"><b>${esc(p)}</b><br><span class="muted">${n} session${n===1?'':'s'}</span></div>`).join(''):'<p class="muted">No troubleshooting path data.</p>'}</article>
+    <article class="card"><div class="ey">TEACHER ACTION PLAN</div>${actionItems.map((x,i)=>`<div class="notice" style="margin-top:9px"><b>${i+1}.</b> ${esc(x)}</div>`).join('')}</article>`;
+
+    document.querySelector('#backreport').onclick=load;
+    document.querySelector('#anonreport').onclick=()=>{anonymous=!anonymous;render()};
+    document.querySelector('#applyperiod').onclick=()=>{from=document.querySelector('#reportfrom').value;to=document.querySelector('#reportto').value;if(from&&to&&from>to)return alert('From date must be before To date.');render()};
+    document.querySelector('#alltime').onclick=()=>{from='';to='';render()};
+    document.querySelector('#printreport').onclick=()=>window.print();
+    document.querySelector('#csvreport').onclick=()=>{
+      const rows=[['Student',...catalog.map((a,i)=>`S${i+1}: ${a.title}`),'Labs Attempted','Labs Passed','Total Attempts','Retakes','Average Best','Average Efficiency','Average Successful Time Seconds','First-Try Mastery','Status'],...studentStats.map(s=>[s.name,...s.detail.map(x=>x.best||''),s.attempted,s.passed,s.totalAttempts,s.retakes,s.avgBest,s.avgEff,s.avgTime,s.firstTry,s.status])];
+      const blob=new Blob([rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${cur.code}-whole-class-report.csv`;a.click();URL.revokeObjectURL(url);
+    };
+  };
+  render();
+}
 
 async function manageCall(body){
   const {data:{session}}=await sb.auth.getSession();
