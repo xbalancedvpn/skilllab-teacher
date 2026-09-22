@@ -292,7 +292,7 @@ async function manageStudents(cur){
     const shown=students.filter(x=>filter==='test'?x.is_test:filter==='all'?true:x.status===filter&&!x.is_test);
     app.innerHTML=`<div class="row">
       <div><div class="ey">STUDENT MANAGEMENT</div><h2>${esc(cur.name)}</h2><div class="muted">Edit roster details without changing saved student identity.</div></div>
-      <div class="toolbar"><button id="backdash" class="btn">Back to Dashboard</button></div>
+      <div class="toolbar"><button id="addexisting" class="btn primary">+ Add Existing Student</button><button id="backdash" class="btn">Back to Dashboard</button></div>
     </div>
     <div class="grid g4">
       <div class="card metric"><span class="muted">Active</span><b>${n.active}</b></div>
@@ -321,6 +321,25 @@ async function manageStudents(cur){
     </article>`;
 
     document.querySelector('#backdash').onclick=load;
+    document.querySelector('#addexisting').onclick=async()=>{
+      const email=prompt('Enter the registered SkillLab email address:');
+      if(!email)return;
+      const found=await manageCall({action:'find_existing_student',class_id:cur.id,email});
+      if(found.error)return alert(found.error);
+      const s=found.student;
+      if(found.already_enrolled)return alert((s?.display_name||s?.full_name||'Student')+' is already enrolled in this class.');
+      const ok=confirm('Add '+(s?.full_name||'this student')+'\n'+(s?.email||email)+'\n\nto '+cur.name+'?');
+      if(!ok)return;
+      const added=await manageCall({action:'add_existing_student',class_id:cur.id,email});
+      if(added.error)return alert(added.error);
+      const fresh=await manageCall({action:'roster',class_id:cur.id});
+      if(fresh.error)return alert(fresh.error);
+      students=fresh.students||students;
+      filter='active';
+      selected=students.find(x=>x.user_id===added.student?.user_id)||null;
+      render();
+      alert('Student added successfully.');
+    };
     document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;selected=null;render()});
     document.querySelectorAll('.edit-student').forEach(b=>b.onclick=()=>{
       selected=students.find(x=>x.user_id===b.dataset.id)||null;
