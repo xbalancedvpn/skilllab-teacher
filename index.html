@@ -105,7 +105,12 @@ document.querySelector('#csv').onclick=()=>{const rows=[['Student',...catalog.ma
 document.querySelector('#classpick').onchange=e=>{classId=e.target.value;load()};document.querySelector('#manage').onclick=()=>manageStudents(cur);document.querySelector('#out').onclick=async()=>{await sb.auth.signOut();classId=null;login()};document.querySelector('#pause').onclick=async()=>{const{error}=await sb.from('classes').update({is_active:!cur.is_active}).eq('id',cur.id);if(error)return alert(error.message);load()};document.querySelector('#new').onclick=()=>newClass(session.user)}
 
 async function manageCall(body){
-  const {data,error}=await sb.functions.invoke('skilllab-teacher-manage',{body});
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session?.access_token)return{error:'Teacher session expired. Please sign in again.'};
+  const {data,error}=await sb.functions.invoke('skilllab-teacher-manage',{
+    body,
+    headers:{Authorization:'Bearer '+session.access_token}
+  });
   if(error)return{error:error.message||'Management request failed.'};
   return data||{};
 }
